@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a2a0a">
+<title>🔭 المراقب الميداني - درع الغابة v1.1</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#0a0a0a;color:#e0e0e0;overflow:hidden;display:flex;flex-direction:column}
+
+/* Splash */
+#splash{position:fixed;inset:0;background:linear-gradient(145deg,#0d2a0d,#0a1a0a);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:9999;transition:opacity .7s,visibility .7s;text-align:center;padding:20px}
+#splash.hidden{opacity:0;visibility:hidden;pointer-events:none}
+#splashLogo{width:120px;height:120px;background:#4CAF50;border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:3.6rem;box-shadow:0 0 50px rgba(76,175,80,.4);border:3px solid #66bb6a;margin-bottom:18px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+#splash h1{font-size:1.7rem;color:#fff;margin-bottom:6px}
+#splash p{color:#b2dfdb;font-size:.95rem;margin-bottom:18px}
+#splash .bar{width:150px;height:3px;background:#1a3a1a;border-radius:4px;overflow:hidden}
+#splash .bar::after{content:'';display:block;width:40%;height:100%;background:#4CAF50;animation:load 1.6s infinite}
+@keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}
+
+/* Header */
+header{background:#0a1a0a;border-bottom:2px solid #4CAF50;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;z-index:100}
+header h1{font-size:.95rem;color:#66bb6a;display:flex;align-items:center;gap:6px}
+#connStatus{font-size:.65rem;padding:3px 8px;border-radius:10px;background:#333;color:#aaa}
+#connStatus.online{background:#1b5e20;color:#a5d6a7}
+#connStatus.offline{background:#b71c1c;color:#ffcdd2}
+
+/* Map */
+#mapWrap{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;z-index:1;background:#1a1a1a}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#1a1a1a;color:#eee;border-radius:8px}
+.leaflet-popup-content{margin:10px;font-size:.82rem}
+
+/* Layer button */
+#layerBtn{position:absolute;top:10px;right:10px;z-index:500;background:rgba(20,20,20,.92);border:1px solid #444;border-radius:8px;padding:8px 12px;color:#fff;font-size:.75rem;cursor:pointer;backdrop-filter:blur(6px);display:flex;align-items:center;gap:6px}
+#layerBtn:active{transform:scale(.96)}
+
+/* Layer panel */
+#layerPanel{position:absolute;top:52px;right:10px;z-index:500;background:rgba(20,20,20,.96);border:1px solid #444;border-radius:10px;padding:10px;min-width:200px;display:none;backdrop-filter:blur(8px);max-height:75vh;overflow-y:auto}
+#layerPanel.active{display:block}
+.layer-title{color:#66bb6a;font-weight:bold;font-size:.72rem;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #333;letter-spacing:.5px}
+.layer-item{display:flex;align-items:center;gap:8px;padding:6px 2px;font-size:.78rem;color:#ccc;cursor:pointer;border-radius:4px}
+.layer-item:hover{background:#2a2a2a;color:#fff}
+.layer-item input{accent-color:#4CAF50;width:16px;height:16px;cursor:pointer}
+.layer-item .em{font-size:1rem}
+
+/* FAB stack */
+#fabStack{position:absolute;bottom:16px;left:16px;z-index:500;display:flex;flex-direction:column;gap:10px}
+.fab{width:56px;height:56px;border-radius:50%;border:none;color:#fff;font-size:1.4rem;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;transition:transform .15s;font-weight:bold}
+.fab:active{transform:scale(.92)}
+.fab-locate{background:#1976d2}
+.fab-report{background:#d32f2f;animation:pulseRed 2s infinite}
+@keyframes pulseRed{0%,100%{box-shadow:0 6px 20px rgba(211,47,47,.6)}50%{box-shadow:0 6px 30px rgba(211,47,47,1)}}
+
+/* Crosshair */
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:400;pointer-events:none;display:none}
+#crosshair.active{display:block}
+#crosshair .dot{width:22px;height:22px;border-radius:50%;background:rgba(211,47,47,.9);border:3px solid #fff;box-shadow:0 0 0 5px rgba(211,47,47,.25),0 0 20px rgba(211,47,47,.9);animation:crossPulse 1.4s infinite}
+@keyframes crossPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+#crosshairLabel{position:absolute;top:34px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,.9);color:#fff;padding:5px 12px;border-radius:16px;font-size:.72rem;white-space:nowrap;border:1px solid #444}
+
+/* Info bar */
+#infoBar{background:#0a1a0a;border-top:2px solid #2a4a2a;padding:8px 12px;font-size:.75rem;display:flex;justify-content:space-between;align-items:center;color:#aaa;z-index:100;min-height:38px}
+#infoBar .loc-text{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#b2dfdb}
+#infoBar .acc{padding:2px 8px;border-radius:10px;background:#1a3a1a;color:#81c784;font-size:.65rem;margin-left:8px;white-space:nowrap}
+#infoBar .acc.warn{background:#5d4a1a;color:#ffb74d}
+#infoBar .acc.err{background:#5d1a1a;color:#ef9a9a}
+
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;justify-content:center;align-items:flex-end;z-index:2000;padding:0}
+.modal.active{display:flex}
+.modal-box{background:#141414;border-top-left-radius:18px;border-top-right-radius:18px;padding:18px 16px 24px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;animation:slideUp .28s ease-out}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #2a2a2a}
+.modal-head h3{color:#66bb6a;font-size:1.05rem;display:flex;align-items:center;gap:6px}
+.modal-close{background:transparent;border:none;color:#888;font-size:1.6rem;cursor:pointer;line-height:1;padding:0 4px}
+.modal-close:hover{color:#fff}
+
+.field{margin-bottom:10px}
+.field label{display:block;font-size:.72rem;color:#888;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border-radius:8px;border:1px solid #333;background:#0f0f0f;color:#fff;font-size:.9rem;font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:#4CAF50;background:#0a1a0a}
+.field textarea{min-height:70px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* Nearest station info */
+#nearStation{background:linear-gradient(135deg,#1a1206,#2a1a06);border:1px solid #ff6f00;border-radius:10px;padding:10px;margin-bottom:10px}
+#nearStation .row{display:flex;justify-content:space-between;padding:2px 0;font-size:.78rem}
+#nearStation .lbl{color:#ff9f43}
+#nearStation .val{color:#fff;font-weight:bold}
+
+/* Weather strip */
+#weatherStrip{display:flex;justify-content:space-around;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:10px 6px;margin-bottom:10px}
+#weatherStrip .w-item{text-align:center;flex:1}
+#weatherStrip .w-val{font-size:.9rem;font-weight:bold;color:#fff}
+#weatherStrip .w-lbl{font-size:.62rem;color:#888;margin-top:2px}
+
+/* Buttons */
+.btn{border:none;border-radius:10px;padding:12px 16px;font-size:.9rem;color:#fff;cursor:pointer;font-weight:bold;transition:.15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:active{transform:scale(.97)}
+.btn-red{background:#d32f2f}
+.btn-green{background:#2e7d32}
+.btn-orange{background:#ff6f00}
+.btn-blue{background:#1976d2}
+.btn-wa{background:#25D366}
+.btn-sms{background:#0b57d0}
+.btn-gray{background:#444}
+.btn-full{width:100%}
+.btn-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.btn-row .btn{flex:1;min-width:100px;font-size:.82rem;padding:10px 10px}
+
+/* Fire list */
+.fire-item{background:#141414;border:1px solid #2a2a2a;border-right:4px solid #d32f2f;border-radius:10px;padding:10px;margin-bottom:8px;cursor:pointer;transition:.2s}
+.fire-item:active{background:#1f1f1f}
+.fire-item.selected{border-right-color:#4CAF50;background:#0f1f0f}
+.fire-item .fi-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.fire-item .fi-title{font-weight:bold;color:#ff8a80;font-size:.9rem}
+.fire-item .fi-dist{font-weight:bold;color:#81c784;font-size:.82rem}
+.fire-item .fi-sub{font-size:.72rem;color:#999;line-height:1.5}
+.badge{display:inline-block;padding:1px 7px;border-radius:8px;font-size:.62rem;font-weight:bold;margin-left:4px}
+.b-new{background:#c62828;color:#fff}
+.b-proc{background:#ef6c00;color:#fff}
+.b-done{background:#2e7d32;color:#fff}
+.b-nasa{background:#283593;color:#fff}
+.b-field{background:#4CAF50;color:#fff}
+
+/* Toast */
+#toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%) translateY(140px);background:#222;border:1px solid #444;color:#fff;padding:11px 20px;border-radius:24px;font-size:.82rem;z-index:9999;transition:transform .3s;max-width:90%;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.ok{background:#1b5e20;border-color:#4CAF50}
+#toast.err{background:#b71c1c;border-color:#f44336}
+#toast.warn{background:#e65100;border-color:#ff9800}
+
+/* Settings modal styles */
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #262626;font-size:.85rem;color:#ccc}
+.set-row:last-child{border-bottom:none}
+.set-row input[type=checkbox]{width:18px;height:18px;accent-color:#4CAF50}
+input[type=range]{width:100%;accent-color:#4CAF50}
+input[type=number],select{width:100%;padding:9px;border-radius:6px;border:1px solid #444;background:#222;color:#fff;font-size:.9rem}
+
+.success-flash{position:fixed;inset:0;background:rgba(76,175,80,.15);z-index:9998;pointer-events:none;animation:flashFade .7s ease-out forwards}
+@keyframes flashFade{from{opacity:1}to{opacity:0}}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div id="splashLogo">🔭</div>
+  <h1>المراقب الميداني</h1>
+  <p>نظام درع الغابة v3.2 — سوريا</p>
+  <div class="bar"></div>
+</div>
+
+<header>
+  <h1><span>🔭</span> المراقب الميداني</h1>
+  <span id="connStatus">⏳ اتصال...</span>
+</header>
+
+<div id="mapWrap">
+  <div id="map"></div>
+  <div id="crosshair"><div class="dot"></div><div id="crosshairLabel">📍 حرّك الخريطة لتحديد موقع الحريق</div></div>
+
+  <button id="layerBtn"><span class="em">🗺️</span> الطبقات</button>
+
+  <div id="layerPanel">
+    <div class="layer-title">🗺️ خلفية الخريطة</div>
+    <label class="layer-item"><input type="radio" name="basemap" value="sat" checked> <span class="em">🛰️</span> قمر صناعي</label>
+    <label class="layer-item"><input type="radio" name="basemap" value="street"> <span class="em">🗺️</span> شوارع</label>
+    <label class="layer-item"><input type="radio" name="basemap" value="hybrid"> <span class="em">🌍</span> هجين</label>
+    <label class="layer-item"><input type="radio" name="basemap" value="topo"> <span class="em">🏔️</span> تضاريس</label>
+    <div class="layer-title" style="margin-top:8px">📊 طبقات</div>
+    <label class="layer-item"><input type="checkbox" id="lyReports" checked> <span class="em">🔥</span> البلاغات</label>
+    <label class="layer-item"><input type="checkbox" id="lyStations" checked> <span class="em">🚒</span> مراكز الإطفاء</label>
+    <label class="layer-item"><input type="checkbox" id="lyMe"> <span class="em">📍</span> مساري المتحرك</label>
+    <label class="layer-item"><input type="checkbox" id="lyHeat"> <span class="em">🌡️</span> خريطة حرارية</label>
+    <label class="layer-item" style="padding-right:28px">
+      <button id="openHeatSetBtn" style="background:#2a4a2a;border:1px solid #4CAF50;color:#a5d6a7;padding:4px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;width:100%">⚙️ إعدادات الخريطة الحرارية</button>
+    </label>
+  </div>
+
+  <div id="fabStack">
+    <button class="fab fab-locate" id="fabLocate" title="موقعي">📍</button>
+    <button class="fab fab-report" id="fabReport" title="بلاغ حريق">🚨</button>
+  </div>
+</div>
+
+<div id="infoBar">
+  <span class="loc-text" id="locText">📍 جاري تحديد موقعك...</span>
+  <span class="acc" id="accBadge">-- م</span>
+</div>
+
+<!-- Modal: بلاغ حريق -->
+<div class="modal" id="reportModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🚨 إرسال بلاغ حريق</h3>
+      <button class="modal-close" id="closeReportModal">✕</button>
+    </div>
+
+    <div class="field">
+      <label>📍 الموقع (المنطقة)</label>
+      <input type="text" id="rLocation" placeholder="سيتم التحديد تلقائياً...">
+    </div>
+
+    <div class="grid2">
+      <div class="field"><label>خط العرض</label><input type="text" id="rLat" readonly></div>
+      <div class="field"><label>خط الطول</label><input type="text" id="rLng" readonly></div>
+    </div>
+
+    <div id="nearStation" style="display:none">
+      <div class="row"><span class="lbl">🚒 أقرب مركز</span><span class="val" id="nsName">--</span></div>
+      <div class="row"><span class="lbl">📏 المسافة</span><span class="val" id="nsDist">-- كم</span></div>
+      <div class="row"><span class="lbl">🧭 الاتجاه</span><span class="val" id="nsDir">--</span></div>
+      <div class="row"><span class="lbl">⏱️ الوصول التقديري</span><span class="val" id="nsEta">-- د</span></div>
+    </div>
+
+    <div id="weatherStrip">
+      <div class="w-item"><div class="w-val" id="wTemp">--</div><div class="w-lbl">🌡️ حرارة</div></div>
+      <div class="w-item"><div class="w-val" id="wWind">--</div><div class="w-lbl">💨 رياح km/h</div></div>
+      <div class="w-item"><div class="w-val" id="wHum">--</div><div class="w-lbl">💧 رطوبة</div></div>
+      <div class="w-item"><div class="w-val" id="wSpread">--</div><div class="w-lbl">📈 انتشار م/د</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label>🔥 نوع الحريق</label>
+        <select id="rType">
+          <option value="">اختر...</option>
+          <option value="غابات">🔥 غابات</option>
+          <option value="أعشاب">🌾 أعشاب</option>
+          <option value="مباني">🏠 مباني</option>
+          <option value="مركبات">🚗 مركبات</option>
+          <option value="أخرى">⚠️ أخرى</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>⚠️ الخطورة</label>
+        <select id="rSeverity">
+          <option value="">اختر...</option>
+          <option value="عالي">🔴 عالي</option>
+          <option value="متوسط">🟠 متوسط</option>
+          <option value="منخفض">🟢 منخفض</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>📝 وصف الحريق (اختياري)</label>
+      <textarea id="rDesc" placeholder="مثال: دخان كثيف من الجهة الشمالية، النار تتحرك نحو الطريق..."></textarea>
+    </div>
+
+    <button class="btn btn-red btn-full" id="btnSubmit" style="padding:14px;font-size:1rem">🚨 إرسال البلاغ للنظام</button>
+
+    <div class="btn-row">
+      <button class="btn btn-wa" id="btnWA">📤 واتساب</button>
+      <button class="btn btn-sms" id="btnSMS">📱 رسالة نصية</button>
+    </div>
+
+    <button class="btn btn-gray btn-full" id="btnCancel" style="margin-top:8px">إلغاء</button>
+  </div>
+</div>
+
+<!-- Modal: قائمة البلاغات -->
+<div class="modal" id="listModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>📋 البلاغات النشطة</h3>
+      <button class="modal-close" id="closeListModal">✕</button>
+    </div>
+    <div id="fireList"></div>
+  </div>
+</div>
+
+<!-- Modal: إعدادات الخريطة الحرارية -->
+<div class="modal" id="heatSettingsModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>🌡️ إعدادات الخريطة الحرارية</h3>
+      <button class="modal-close" id="closeHeatSetModal">✕</button>
+    </div>
+    <div style="color:#81c784;font-size:.75rem;text-align:center;margin-bottom:12px" id="heatCountInfo">-- بلاغ ظاهر</div>
+
+    <div style="margin-bottom:12px">
+      <label style="color:#aaa;font-size:.78rem;display:block;margin-bottom:4px">
+        🎯 نطاق التأثير: <b style="color:#4CAF50" id="hvRadius">25</b> بكسل
+      </label>
+      <input type="range" id="hRangeRadius" min="5" max="60" step="1" value="25">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="color:#aaa;font-size:.78rem;display:block;margin-bottom:4px">
+        💨 الضبابية: <b style="color:#4CAF50" id="hvBlur">20</b>
+      </label>
+      <input type="range" id="hRangeBlur" min="0" max="50" step="1" value="20">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="color:#aaa;font-size:.78rem;display:block;margin-bottom:4px">
+        👁️ الشفافية: <b style="color:#4CAF50" id="hvOpac">0.15</b>
+      </label>
+      <input type="range" id="hRangeOpac" min="0" max="100" step="5" value="15">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="color:#aaa;font-size:.78rem;display:block;margin-bottom:6px">📅 الفترة الزمنية</label>
+      <select id="hRangeDays">
+        <option value="1">آخر 24 ساعة</option>
+        <option value="7">آخر 7 أيام</option>
+        <option value="30" selected>آخر 30 يوم</option>
+        <option value="90">آخر 3 أشهر</option>
+        <option value="365">آخر سنة</option>
+        <option value="0">كل البلاغات</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <span>⚖️ ترجيح حسب الخطورة</span>
+      <input type="checkbox" id="hChkSeverity" checked>
+    </div>
+    <div class="set-row">
+      <span>🛰️ ترجيح حسب المصدر</span>
+      <input type="checkbox" id="hChkSource" checked>
+    </div>
+    <div class="set-row">
+      <span>✅ تضمين البلاغات المخمَدة</span>
+      <input type="checkbox" id="hChkExting">
+    </div>
+    <div style="background:#0d1f0d;border:1px solid #2e7d32;border-radius:8px;padding:8px;margin-top:12px;font-size:.72rem;color:#81c784;line-height:1.7">
+      <b>🎨 دليل الألوان:</b><br>
+      <span style="color:#0000ff">■</span> منخفض &nbsp;
+      <span style="color:#00ff00">■</span> متوسط &nbsp;
+      <span style="color:#ffff00">■</span> ملحوظ &nbsp;
+      <span style="color:#ff9800">■</span> مرتفع &nbsp;
+      <span style="color:#ff0000">■</span> حرج
+    </div>
+    <div style="display:flex;gap:6px;margin-top:14px">
+      <button class="btn btn-gray" id="hBtnReset" style="flex:1">↺ إعادة ضبط</button>
+      <button class="btn btn-green" id="hBtnClose" style="flex:2">✓ موافق</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= Firebase ================= */
+var firebaseConfig = {
+  apiKey: "AIzaSyC1MTq6BVeEcKmBw_QpFvIvDHLHxvz-KnU",
+  authDomain: "forest-shield-syria-cad77.firebaseapp.com",
+  projectId: "forest-shield-syria-cad77",
+  storageBucket: "forest-shield-syria-cad77.firebasestorage.app",
+  messagingSenderId: "203491756771",
+  appId: "1:203491756771:web:9284bf6dab09d04705d3d6",
+  measurementId: "G-XF4VNQLDMP"
+};
+if (typeof firebase !== 'undefined' && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var db = (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore() : null;
+var auth = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth() : null;
+if (db && db.enablePersistence) db.enablePersistence().catch(function(){});
+
+/* ================= الحالة ================= */
+var map, baseLayers = {}, currentBase = 'sat';
+var reportsLayer, stationsLayer, myTrackLayer;
+var reports = [];
+var fireStations = [];
+var userLat = null, userLng = null, userAcc = null;
+var userMarker = null, accCircle = null;
+var watchId = null;
+var myTrackPoints = [];
+var trackEnabled = false;
+var pendingLat = null, pendingLng = null;
+var currentWeather = null;
+var spreadRate = 0;
+var selectedReportId = null;
+var OBSERVER_ID = localStorage.getItem('observerId') ||
+      ('obs_' + Math.random().toString(36).slice(2,9));
+localStorage.setItem('observerId', OBSERVER_ID);
+
+/* ================= أدوات ================= */
+function toRad(d){return d*Math.PI/180}
+function toDeg(r){return r*180/Math.PI}
+function haversine(a,b,c,d){
+  var R=6371, dLat=toRad(c-a), dLng=toRad(d-b);
+  var x=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+function bearing(a,b,c,d){
+  var y=Math.sin(toRad(d-b))*Math.cos(toRad(c));
+  var x=Math.cos(toRad(a))*Math.sin(toRad(c))-Math.sin(toRad(a))*Math.cos(toRad(c))*Math.cos(toRad(d-b));
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+function dirText(deg){
+  var d=['شمال','شمال شرقي','شرق','جنوب شرقي','جنوب','جنوب غربي','غرب','شمال غربي'];
+  return d[Math.round(deg/45)%8];
+}
+function fmtDist(km){ return km<1 ? Math.round(km*1000)+' م' : km.toFixed(1)+' كم'; }
+function toast(msg,type){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='show'+(type?' '+type:'');
+  clearTimeout(t._tm);
+  t._tm=setTimeout(function(){ t.className=''; },3500);
+}
+function vibrate(p){ if(navigator.vibrate) try{navigator.vibrate(p)}catch(e){} }
+
+/* ================= الخريطة ================= */
+function initMap(){
+  map = L.map('map',{ zoomControl:false, tap:false }).setView([34.8,38.0],7);
+
+  baseLayers = {
+    sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+      maxZoom:19, attribution:'© Esri' }),
+    street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19, attribution:'© OpenStreetMap' }),
+    hybrid: L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}),
+      L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}.png',{maxZoom:18,opacity:.85})
+    ]),
+    topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{ maxZoom:17 })
+  };
+  baseLayers.sat.addTo(map);
+
+  reportsLayer  = L.layerGroup().addTo(map);
+  stationsLayer = L.layerGroup().addTo(map);
+  myTrackLayer  = L.layerGroup().addTo(map);
+
+  L.control.zoom({position:'bottomleft'}).addTo(map);
+
+  map.on('move', updatePendingCenter);
+  map.on('moveend', function(){
+    if(pendingLat!==null){
+      fetchWeather(pendingLat,pendingLng);
+      updateNearestStation(pendingLat,pendingLng);
+      reverseGeocode(pendingLat,pendingLng);
+    }
+  });
+}
+
+/* ================= الموقع ================= */
+function startTracking(){
+  if(!navigator.geolocation){ toast('❌ الجهاز لا يدعم GPS','err'); return; }
+  if(watchId) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(onPos, onErr, {
+    enableHighAccuracy:true, timeout:25000, maximumAge:3000
+  });
+}
+function onPos(pos){
+  var lat=pos.coords.latitude, lng=pos.coords.longitude, acc=pos.coords.accuracy;
+  var first = (userLat===null);
+  userLat=lat; userLng=lng; userAcc=acc;
+
+  if(!userMarker){
+    var icon=L.divIcon({
+      html:'<div style="background:#1976d2;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 6px rgba(25,118,210,.25),0 0 22px rgba(25,118,210,.9)"></div>',
+      iconSize:[20,20]
+    });
+    userMarker = L.marker([lat,lng],{icon:icon,zIndexOffset:1000}).addTo(map);
+    userMarker.bindPopup('<b style="color:#1976d2">📍 موقعك الحالي</b>');
+    map.flyTo([lat,lng],15);
+  } else {
+    userMarker.setLatLng([lat,lng]);
+  }
+  if(!accCircle){
+    accCircle = L.circle([lat,lng],{ radius:acc, color:'#1976d2', fillColor:'#1976d2', fillOpacity:.12, weight:1, dashArray:'4,4' }).addTo(map);
+  } else {
+    accCircle.setLatLng([lat,lng]); accCircle.setRadius(acc);
+  }
+
+  if(trackEnabled){
+    myTrackPoints.push([lat,lng]);
+    if(myTrackPoints.length>500) myTrackPoints.shift();
+    myTrackLayer.clearLayers();
+    L.polyline(myTrackPoints,{color:'#2196F3',weight:4,opacity:.75}).addTo(myTrackLayer);
+  }
+
+  var accBadge = document.getElementById('accBadge');
+  accBadge.textContent = acc.toFixed(0)+' م';
+  accBadge.className = 'acc'+(acc>50?' warn':'')+(acc>150?' err':'');
+
+  if(first) toast('✅ تم تحديد موقعك','ok');
+  updateInfoBar();
+  renderFireList();
+}
+function onErr(e){
+  var m='❌ ';
+  if(e.code===1) m+='رفض إذن الموقع — فعّل GPS واسمح للمتصفح';
+  else if(e.code===2) m+='الموقع غير متاح';
+  else if(e.code===3) m+='انتهت مدة التحديد';
+  else m+='خطأ في GPS';
+  toast(m,'err');
+  document.getElementById('locText').textContent = m;
+}
+
+/* ================= Info Bar ================= */
+function updateInfoBar(){
+  var el = document.getElementById('locText');
+  if(pendingLat!==null && pendingLng!==null){
+    el.textContent = '🎯 موقع البلاغ: '+pendingLat.toFixed(5)+', '+pendingLng.toFixed(5);
+  } else if(userLat!==null){
+    el.textContent = '📍 موقعك: '+userLat.toFixed(5)+', '+userLng.toFixed(5);
+  }
+}
+function updatePendingCenter(){
+  if(!map) return;
+  var c = map.getCenter();
+  pendingLat = c.lat;
+  pendingLng = c.lng;
+  updateInfoBar();
+}
+
+/* ================= اسم المكان ================= */
+function reverseGeocode(lat,lng){
+  fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&accept-language=ar',{headers:{'Accept':'application/json'}})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var name = 'غير محدد';
+      if(d.address){
+        name = d.address.village || d.address.town || d.address.city ||
+               d.address.suburb || d.address.county || d.address.state || name;
+      } else if(d.display_name){
+        name = d.display_name.split(',')[0];
+      }
+      var f = document.getElementById('rLocation');
+      if(f && !f.value) f.value = name;
+    })
+    .catch(function(){});
+}
+
+/* ================= الطقس ================= */
+function fetchWeather(lat,lng){
+  fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lng+
+        '&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var c = d.current;
+      currentWeather = {
+        temp: c.temperature_2m,
+        humidity: c.relative_humidity_2m,
+        windSpeed: c.wind_speed_10m,
+        windDir: c.wind_direction_10m
+      };
+      spreadRate = (c.wind_speed_10m*0.5) + (c.temperature_2m*0.1) - (c.relative_humidity_2m*0.05);
+      spreadRate = Math.max(0.5, Math.min(30, spreadRate));
+      document.getElementById('wTemp').textContent = c.temperature_2m.toFixed(1)+'°';
+      document.getElementById('wWind').textContent = c.wind_speed_10m.toFixed(0)+' km/h';
+      document.getElementById('wHum').textContent = c.relative_humidity_2m.toFixed(0)+'%';
+      document.getElementById('wSpread').textContent = spreadRate.toFixed(1);
+    }).catch(function(){
+      document.getElementById('wTemp').textContent='--';
+      document.getElementById('wWind').textContent='--';
+      document.getElementById('wHum').textContent='--';
+      document.getElementById('wSpread').textContent='--';
+    });
+}
+
+/* ================= أقرب مركز ================= */
+function updateNearestStation(lat,lng){
+  var box = document.getElementById('nearStation');
+  if(!fireStations.length){ box.style.display='none'; return; }
+  var best=null, min=Infinity;
+  fireStations.forEach(function(s){
+    var d = haversine(lat,lng,s.lat,s.lng);
+    if(d<min){ min=d; best=s; }
+  });
+  if(!best){ box.style.display='none'; return; }
+  var b = bearing(lat,lng,best.lat,best.lng);
+  document.getElementById('nsName').textContent = best.name;
+  document.getElementById('nsDist').textContent = min.toFixed(2)+' كم';
+  document.getElementById('nsDir').textContent = dirText(b);
+  document.getElementById('nsEta').textContent = Math.max(1,Math.round(min/50*60))+' دقيقة';
+  box.style.display = 'block';
+}
+function getNearestStationInfo(lat,lng){
+  if(!fireStations.length) return null;
+  var best=null, min=Infinity;
+  fireStations.forEach(function(s){
+    var d=haversine(lat,lng,s.lat,s.lng);
+    if(d<min){ min=d; best=s; }
+  });
+  if(!best) return null;
+  var b = bearing(lat,lng,best.lat,best.lng);
+  return { station: best, distance: min, bearing: b, direction: dirText(b) };
+}
+
+/* ================= Firebase Sync ================= */
+function listenReports(){
+  if(!db){ toast('❌ Firebase غير مهيّأ','err'); return; }
+  db.collection('reports').onSnapshot(function(snap){
+    document.getElementById('connStatus').textContent='🟢 متصل';
+    document.getElementById('connStatus').className='online';
+    var changed=false;
+    snap.docChanges().forEach(function(ch){
+      var data = ch.doc.data();
+      if(data.lat===undefined||data.lng===undefined) return;
+      var idx = reports.findIndex(function(r){ return String(r.id)===String(data.id); });
+      if(ch.type==='added'){
+        if(idx===-1){ reports.push(data); changed=true; }
+      } else if(ch.type==='modified'){
+        if(idx>-1) reports[idx]=data; changed=true;
+      } else if(ch.type==='removed'){
+        if(idx>-1){ reports.splice(idx,1); changed=true; }
+      }
+    });
+    if(changed){ renderFireMarkers(); renderFireList(); updateHeatmap(); }
+  }, function(err){
+    console.error(err);
+    document.getElementById('connStatus').textContent='🔴 خطأ اتصال';
+    document.getElementById('connStatus').className='offline';
+  });
+}
+
+function listenStations(){
+  if(!db) return;
+  db.collection('fireStations').onSnapshot(function(snap){
+    fireStations = [];
+    snap.forEach(function(d){ fireStations.push(d.data()); });
+    renderStationMarkers();
+  }, function(){});
+}
+
+/* ================= Markers ================= */
+function renderFireMarkers(){
+  reportsLayer.clearLayers();
+  if(!document.getElementById('lyReports').checked) return;
+  reports.forEach(function(r){
+    if(r.status==='تم الإخماد') return;
+    var color = r.status==='قيد المعالجة' ? '#FF9800' : '#f44336';
+    var isNasa = r.source==='NASA_FIRMS';
+    var icon = L.divIcon({
+      html:'<div style="background:'+color+';width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 18px '+color+';'+(isNasa?'animation:pulse 1.5s infinite':'')+'"></div>',
+      iconSize:[18,18]
+    });
+    var m = L.marker([r.lat,r.lng],{icon:icon}).addTo(reportsLayer);
+    var sourceBadge = r.source==='NASA_FIRMS' ? '🛰️ NASA' :
+                      r.source==='FIELD_OBSERVER' ? '🔭 ميداني' :
+                      r.source==='FIELD_NAV' ? '🚒 ملاحة' : '📱 تطبيق';
+    m.bindPopup(buildPopup(r,sourceBadge));
+  });
+}
+function buildPopup(r, sourceBadge){
+  var statusCls = r.status==='جديد'?'b-new':(r.status==='قيد المعالجة'?'b-proc':'b-done');
+  var html = '<div style="min-width:200px">';
+  html += '<b style="color:#f44336">🔥 '+(r.type||'حريق')+' — '+(r.severity||'')+'</b><br>';
+  html += '📍 '+(r.location||'غير محدد')+'<br>';
+  html += '🛰️ المصدر: '+sourceBadge+'<br>';
+  if(r.spread) html += '💨 انتشار: '+r.spread+' م/د<br>';
+  if(r.nearestStation) html += '🚒 '+r.nearestStation.name+' ('+r.nearestStation.distance+' كم)<br>';
+  html += '<span class="badge '+statusCls+'">'+r.status+'</span><br>';
+  html += '<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">';
+  html += '<button onclick="window.__shareWA('+r.id+')" style="background:#25D366;border:none;color:#fff;padding:5px 10px;border-radius:5px;font-size:.72rem;cursor:pointer">📤 واتساب</button>';
+  html += '<button onclick="window.__shareSMS('+r.id+')" style="background:#0b57d0;border:none;color:#fff;padding:5px 10px;border-radius:5px;font-size:.72rem;cursor:pointer">📱 رسالة</button>';
+  html += '</div></div>';
+  return html;
+}
+function renderStationMarkers(){
+  stationsLayer.clearLayers();
+  if(!document.getElementById('lyStations').checked) return;
+  fireStations.forEach(function(s){
+    var icon = L.divIcon({
+      html:'<div style="background:#ff6f00;width:20px;height:20px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 12px rgba(255,111,0,.7);display:flex;align-items:center;justify-content:center;font-size:10px">🚒</div>',
+      iconSize:[20,20]
+    });
+    L.marker([s.lat,s.lng],{icon:icon}).bindPopup('<b style="color:#ff6f00">🚒 '+s.name+'</b><br>'+s.type).addTo(stationsLayer);
+  });
+}
+
+/* ================= قائمة ================= */
+function renderFireList(){
+  var container = document.getElementById('fireList');
+  var active = reports.filter(function(r){ return r.status!=='تم الإخماد'; });
+  if(!active.length){
+    container.innerHTML = '<div style="text-align:center;color:#666;padding:20px">✅ لا توجد بلاغات نشطة</div>';
+    return;
+  }
+  if(userLat!==null){
+    active = active.map(function(r){ return { r:r, d:haversine(userLat,userLng,r.lat,r.lng) }; })
+                   .sort(function(a,b){ return a.d-b.d; });
+  } else {
+    active = active.map(function(r){ return { r:r, d:null }; });
+  }
+  var html='';
+  active.forEach(function(o){
+    var r=o.r, d=o.d;
+    var statusCls = r.status==='جديد'?'b-new':'b-proc';
+    var srcBadge = r.source==='NASA_FIRMS'?'<span class="badge b-nasa">🛰️</span>'
+                 : r.source==='FIELD_OBSERVER'?'<span class="badge b-field">🔭</span>':'';
+    html += '<div class="fire-item" onclick="window.__focusReport('+r.id+')">';
+    html += '<div class="fi-top"><span class="fi-title">🔥 '+(r.type||'حريق')+' — '+(r.severity||'')+'</span>';
+    html += '<span class="fi-dist">'+(d!==null?fmtDist(d):'--')+'</span></div>';
+    html += '<div class="fi-sub">📍 '+(r.location||'غير محدد')+'</div>';
+    html += '<div class="fi-sub"><span class="badge '+statusCls+'">'+r.status+'</span>'+srcBadge+' ⏰ '+(r.createdAt||'')+'</div>';
+    html += '<div class="fi-sub" style="color:#81c784;margin-top:4px">🖱️ اضغط للانتقال إلى البلاغ</div>';
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+window.__focusReport = function(id){
+  var r = reports.find(function(x){ return String(x.id)===String(id); });
+  if(!r) return;
+  selectedReportId = r.id;
+  document.getElementById('listModal').classList.remove('active');
+  map.flyTo([r.lat,r.lng],15);
+  setTimeout(function(){
+    reportsLayer.eachLayer(function(layer){
+      var ll = layer.getLatLng();
+      if(Math.abs(ll.lat-r.lat)<0.0001 && Math.abs(ll.lng-r.lng)<0.0001){
+        layer.openPopup();
+      }
+    });
+  }, 1200);
+};
+
+/* ================= مشاركة ================= */
+function buildReportMessage(r){
+  var msg = '🚨 بلاغ حريق — درع الغابة (سوريا)\n\n';
+  msg += '📍 الموقع: '+(r.location||'غير محدد')+'\n';
+  msg += '🗺️ الإحداثيات: '+r.lat.toFixed(5)+', '+r.lng.toFixed(5)+'\n';
+  msg += '🔥 النوع: '+(r.type||'--')+'\n';
+  msg += '⚠️ الخطورة: '+(r.severity||'--')+'\n';
+  if(r.spread) msg += '💨 معدل الانتشار: '+r.spread+' م/د\n';
+  if(r.weather){
+    msg += '🌡️ الحرارة: '+Number(r.weather.temp).toFixed(1)+'°C\n';
+    msg += '💨 الرياح: '+Number(r.weather.windSpeed).toFixed(1)+' km/h\n';
+  }
+  if(r.nearestStation){
+    msg += '🚒 أقرب مركز: '+r.nearestStation.name+'\n';
+    msg += '📏 المسافة: '+r.nearestStation.distance+' كم ('+r.nearestStation.direction+')\n';
+  }
+  if(r.description) msg += '📝 الوصف: '+r.description+'\n';
+  msg += '📌 الحالة: '+(r.status||'جديد')+'\n';
+  msg += '⏰ الوقت: '+(r.createdAt||new Date().toLocaleString('ar-SY'))+'\n\n';
+  msg += '🔗 خرائط جوجل: https://maps.google.com/?q='+r.lat+','+r.lng;
+  return msg;
+}
+function sendWhatsApp(msg){
+  var mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var url = 'https://wa.me/?text='+encodeURIComponent(msg);
+  if(mobile){
+    window.location.href = 'whatsapp://send?text='+encodeURIComponent(msg);
+    setTimeout(function(){ window.open(url,'_blank'); },1800);
+  } else {
+    window.open(url,'_blank');
+  }
+  toast('💬 جاري فتح واتساب...');
+}
+function sendSMS(msg){
+  window.location.href = 'sms:?body='+encodeURIComponent(msg);
+  toast('📱 جاري فتح تطبيق الرسائل...');
+}
+window.__shareWA = function(id){
+  var r = reports.find(function(x){ return String(x.id)===String(id); });
+  if(r) sendWhatsApp(buildReportMessage(r));
+};
+window.__shareSMS = function(id){
+  var r = reports.find(function(x){ return String(x.id)===String(id); });
+  if(r) sendSMS(buildReportMessage(r));
+};
+
+/* ================= بلاغ جديد ================= */
+function openReportModal(){
+  document.getElementById('reportModal').classList.add('active');
+  var c = map.getCenter();
+  pendingLat = c.lat; pendingLng = c.lng;
+  document.getElementById('rLat').value = c.lat.toFixed(5);
+  document.getElementById('rLng').value = c.lng.toFixed(5);
+  document.getElementById('rLocation').value = '';
+  document.getElementById('rType').value = '';
+  document.getElementById('rSeverity').value = '';
+  document.getElementById('rDesc').value = '';
+  document.getElementById('nearStation').style.display='none';
+  reverseGeocode(c.lat,c.lng);
+  fetchWeather(c.lat,c.lng);
+  updateNearestStation(c.lat,c.lng);
+}
+function closeReportModal(){
+  document.getElementById('reportModal').classList.remove('active');
+}
+function getFormData(){
+  var lat = parseFloat(document.getElementById('rLat').value);
+  var lng = parseFloat(document.getElementById('rLng').value);
+  return {
+    location: document.getElementById('rLocation').value.trim() || 'غير محدد',
+    lat: lat, lng: lng,
+    type: document.getElementById('rType').value,
+    severity: document.getElementById('rSeverity').value,
+    description: document.getElementById('rDesc').value.trim()
+  };
+}
+function validate(d){
+  if(isNaN(d.lat)||isNaN(d.lng)){ toast('❌ موقع غير صالح','err'); return false; }
+  if(!d.type){ toast('❌ اختر نوع الحريق','err'); return false; }
+  if(!d.severity){ toast('❌ اختر درجة الخطورة','err'); return false; }
+  return true;
+}
+
+function submitReport(){
+  var d = getFormData();
+  if(!validate(d)) return;
+  var nearest = getNearestStationInfo(d.lat,d.lng);
+  var report = {
+    id: Date.now(),
+    location: d.location,
+    lat: d.lat, lng: d.lng,
+    type: d.type, severity: d.severity,
+    description: d.description || '',
+    status: 'جديد',
+    source: 'FIELD_OBSERVER',
+    observerId: OBSERVER_ID,
+    weather: currentWeather || null,
+    spread: spreadRate ? spreadRate.toFixed(1) : '0.0',
+    nearestStation: nearest ? {
+      name: nearest.station.name,
+      distance: nearest.distance.toFixed(2),
+      direction: nearest.direction
+    } : null,
+    createdAt: new Date().toLocaleString('ar-SY'),
+    createdAtTs: Date.now(),
+    syncedAt: new Date().toISOString()
+  };
+
+  try{
+    var local = JSON.parse(localStorage.getItem('fieldObserver_reports')||'[]');
+    local.unshift(report);
+    localStorage.setItem('fieldObserver_reports', JSON.stringify(local.slice(0,50)));
+  }catch(e){}
+
+  if(db){
+    db.collection('reports').doc(String(report.id)).set(report)
+      .then(function(){
+        vibrate([200,100,200]);
+        flashSuccess();
+        toast('✅ تم إرسال البلاغ إلى مركز القيادة','ok');
+        closeReportModal();
+      })
+      .catch(function(e){
+        console.error(e);
+        toast('⚠️ فشل الإرسال — سيتم المحاولة لاحقاً','warn');
+        closeReportModal();
+      });
+  } else {
+    toast('⚠️ لا يوجد اتصال — تم الحفظ محلياً','warn');
+    closeReportModal();
+  }
+}
+function flashSuccess(){
+  var f = document.createElement('div');
+  f.className='success-flash';
+  document.body.appendChild(f);
+  setTimeout(function(){ f.remove(); },800);
+}
+
+function shareWithoutSubmit(channel){
+  var d = getFormData();
+  if(!validate(d)) return;
+  var nearest = getNearestStationInfo(d.lat,d.lng);
+  var tempReport = {
+    location:d.location, lat:d.lat, lng:d.lng,
+    type:d.type, severity:d.severity, description:d.description,
+    status:'جديد', spread: spreadRate ? spreadRate.toFixed(1):'0.0',
+    weather: currentWeather,
+    nearestStation: nearest ? {name:nearest.station.name,distance:nearest.distance.toFixed(2),direction:nearest.direction} : null,
+    createdAt: new Date().toLocaleString('ar-SY')
+  };
+  var msg = buildReportMessage(tempReport);
+  if(channel==='wa') sendWhatsApp(msg);
+  else sendSMS(msg);
+}
+
+/* ================= الخريطة الحرارية ================= */
+var heatLayer = null;
+var heatEnabled = false;
+var heatCfg = { radius: 25, blur: 20, maxZoom: 17, max: 1.0, minOpacity: 0.15 };
+var heatFilters = { days: 30, weightBySeverity: true, weightBySource: true, includeExtinguished: false };
+
+function loadHeatCfg(){
+  try{
+    var s = JSON.parse(localStorage.getItem('heatCfg'));
+    if(s) heatCfg = Object.assign(heatCfg, s);
+    var f = JSON.parse(localStorage.getItem('heatFilters'));
+    if(f) heatFilters = Object.assign(heatFilters, f);
+  }catch(e){}
+}
+function saveHeatCfg(){
+  localStorage.setItem('heatCfg', JSON.stringify(heatCfg));
+  localStorage.setItem('heatFilters', JSON.stringify(heatFilters));
+}
+function computeWeight(r){
+  var w = 1.0;
+  if(heatFilters.weightBySeverity){
+    if(r.severity === 'عالي') w *= 3.0;
+    else if(r.severity === 'متوسط') w *= 1.8;
+  }
+  if(heatFilters.weightBySource){
+    if(r.source === 'NASA_FIRMS') w *= 1.3;
+    else if(r.source === 'FIELD_OBSERVER') w *= 1.1;
+  }
+  if(r.confidence) w *= (r.confidence / 100);
+  return Math.max(0.3, Math.min(5.0, w));
+}
+function getFilteredReports(){
+  var now = Date.now();
+  var cutoff = heatFilters.days > 0 ? now - (heatFilters.days * 86400000) : 0;
+  return reports.filter(function(r){
+    if(!r.lat || !r.lng) return false;
+    if(!heatFilters.includeExtinguished && r.status === 'تم الإخماد') return false;
+    if(cutoff > 0){
+      var ts = r.createdAtTs || r.id || 0;
+      if(typeof ts === 'number' && ts > 1000000000000){
+        if(ts < cutoff) return false;
+      } else if(r.nasaTimestamp){
+        if(new Date(r.nasaTimestamp).getTime() < cutoff) return false;
+      }
+    }
+    return true;
+  });
+}
+function buildHeatData(){
+  var filtered = getFilteredReports();
+  var points = [], maxW = 0;
+  filtered.forEach(function(r){
+    var w = computeWeight(r);
+    if(w > maxW) maxW = w;
+    points.push([r.lat, r.lng, w]);
+  });
+  if(maxW > 0) points = points.map(function(p){ return [p[0], p[1], Math.min(1.0, p[2] / maxW)]; });
+  return points;
+}
+function updateHeatmap(){
+  if(!map) return;
+  if(heatLayer){ map.removeLayer(heatLayer); heatLayer = null; }
+  if(!heatEnabled) return;
+  if(typeof L.heatLayer === 'undefined') return;
+  var data = buildHeatData();
+  if(data.length === 0) return;
+  heatLayer = L.heatLayer(data, {
+    radius: heatCfg.radius, blur: heatCfg.blur,
+    maxZoom: heatCfg.maxZoom, max: heatCfg.max, minOpacity: heatCfg.minOpacity,
+    gradient: {
+      0.0: '#0000ff', 0.2: '#00ff00', 0.4: '#ffff00',
+      0.6: '#ff9800', 0.8: '#ff4400', 1.0: '#ff0000'
+    }
+  }).addTo(map);
+}
+function toggleHeatmap(enabled){
+  heatEnabled = !!enabled;
+  var cb = document.getElementById('lyHeat');
+  if(cb && cb.checked !== heatEnabled) cb.checked = heatEnabled;
+  updateHeatmap();
+  if(heatEnabled) toast('🌡️ الخريطة الحرارية مفعّلة (' + getFilteredReports().length + ' بلاغ)');
+  else toast('🌡️ تم إطفاء الخريطة الحرارية');
+}
+function openHeatSettings(){
+  document.getElementById('hRangeRadius').value = heatCfg.radius;
+  document.getElementById('hvRadius').textContent = heatCfg.radius;
+  document.getElementById('hRangeBlur').value = heatCfg.blur;
+  document.getElementById('hvBlur').textContent = heatCfg.blur;
+  document.getElementById('hRangeOpac').value = heatCfg.minOpacity * 100;
+  document.getElementById('hvOpac').textContent = heatCfg.minOpacity.toFixed(2);
+  document.getElementById('hRangeDays').value = heatFilters.days;
+  document.getElementById('hChkSeverity').checked = heatFilters.weightBySeverity;
+  document.getElementById('hChkSource').checked = heatFilters.weightBySource;
+  document.getElementById('hChkExting').checked = heatFilters.includeExtinguished;
+  document.getElementById('heatCountInfo').textContent = getFilteredReports().length + ' بلاغ ظاهر';
+  document.getElementById('heatSettingsModal').classList.add('active');
+}
+function closeHeatSettings(){
+  saveHeatCfg();
+  document.getElementById('heatSettingsModal').classList.remove('active');
+}
+
+/* ================= الأحداث ================= */
+document.getElementById('layerBtn').addEventListener('click',function(){
+  document.getElementById('layerPanel').classList.toggle('active');
+});
+document.querySelectorAll('input[name="basemap"]').forEach(function(el){
+  el.addEventListener('change',function(){
+    if(!this.checked) return;
+    Object.keys(baseLayers).forEach(function(k){
+      if(map.hasLayer(baseLayers[k])) map.removeLayer(baseLayers[k]);
+    });
+    baseLayers[this.value].addTo(map);
+    currentBase = this.value;
+  });
+});
+document.getElementById('lyReports').addEventListener('change',renderFireMarkers);
+document.getElementById('lyStations').addEventListener('change',renderStationMarkers);
+document.getElementById('lyMe').addEventListener('change',function(){
+  trackEnabled = this.checked;
+  if(!trackEnabled){ myTrackLayer.clearLayers(); myTrackPoints=[]; }
+  else if(userLat!==null){ myTrackPoints=[[userLat,userLng]]; }
+});
+document.getElementById('lyHeat').addEventListener('change',function(){
+  toggleHeatmap(this.checked);
+});
+
+document.getElementById('openHeatSetBtn').addEventListener('click', openHeatSettings);
+
+document.getElementById('fabLocate').addEventListener('click',function(){
+  if(userLat!==null) map.flyTo([userLat,userLng],16);
+  startTracking();
+});
+document.getElementById('fabReport').addEventListener('click',openReportModal);
+
+document.getElementById('closeReportModal').addEventListener('click',closeReportModal);
+document.getElementById('btnCancel').addEventListener('click',closeReportModal);
+document.getElementById('btnSubmit').addEventListener('click',submitReport);
+document.getElementById('btnWA').addEventListener('click',function(){ shareWithoutSubmit('wa'); });
+document.getElementById('btnSMS').addEventListener('click',function(){ shareWithoutSubmit('sms'); });
+
+document.getElementById('infoBar').addEventListener('click',function(){
+  renderFireList();
+  document.getElementById('listModal').classList.add('active');
+});
+document.getElementById('closeListModal').addEventListener('click',function(){
+  document.getElementById('listModal').classList.remove('active');
+});
+
+/* الإعدادات الحرارية */
+document.getElementById('closeHeatSetModal').addEventListener('click', closeHeatSettings);
+document.getElementById('hBtnClose').addEventListener('click', closeHeatSettings);
+document.getElementById('hRangeRadius').addEventListener('input',function(){
+  heatCfg.radius = parseInt(this.value);
+  document.getElementById('hvRadius').textContent = heatCfg.radius;
+  updateHeatmap();
+});
+document.getElementById('hRangeBlur').addEventListener('input',function(){
+  heatCfg.blur = parseInt(this.value);
+  document.getElementById('hvBlur').textContent = heatCfg.blur;
+  updateHeatmap();
+});
+document.getElementById('hRangeOpac').addEventListener('input',function(){
+  heatCfg.minOpacity = parseInt(this.value)/100;
+  document.getElementById('hvOpac').textContent = heatCfg.minOpacity.toFixed(2);
+  updateHeatmap();
+});
+document.getElementById('hRangeDays').addEventListener('change',function(){
+  heatFilters.days = parseInt(this.value);
+  updateHeatmap();
+  document.getElementById('heatCountInfo').textContent = getFilteredReports().length + ' بلاغ ظاهر';
+});
+document.getElementById('hChkSeverity').addEventListener('change',function(){
+  heatFilters.weightBySeverity = this.checked;
+  updateHeatmap();
+});
+document.getElementById('hChkSource').addEventListener('change',function(){
+  heatFilters.weightBySource = this.checked;
+  updateHeatmap();
+});
+document.getElementById('hChkExting').addEventListener('change',function(){
+  heatFilters.includeExtinguished = this.checked;
+  updateHeatmap();
+  document.getElementById('heatCountInfo').textContent = getFilteredReports().length + ' بلاغ ظاهر';
+});
+document.getElementById('hBtnReset').addEventListener('click',function(){
+  heatCfg = {radius:25, blur:20, maxZoom:17, max:1.0, minOpacity:0.15};
+  heatFilters = {days:30, weightBySeverity:true, weightBySource:true, includeExtinguished:false};
+  saveHeatCfg();
+  openHeatSettings();
+  updateHeatmap();
+});
+
+/* ================= التهيئة ================= */
+function hideSplash(){
+  var s = document.getElementById('splash');
+  if(s){ s.classList.add('hidden'); setTimeout(function(){ s.remove(); },800); }
+}
+
+function init(){
+  loadHeatCfg();
+  initMap();
+  listenReports();
+  listenStations();
+  startTracking();
+  updatePendingCenter();
+
+  if(auth){
+    auth.onAuthStateChanged(function(u){
+      if(!u) auth.signInAnonymously().catch(function(){});
+    });
+  }
+
+  setTimeout(hideSplash, 800);
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  });
+}
+
+})();
+</script>
+</body>
+</html>
